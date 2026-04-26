@@ -107,7 +107,7 @@ Tests are run manually using the AI agent that will consume these skills:
 
 - [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets ✅
 - [x] Phase 2: Common operations (3) — run ✅, export, bootstrap ✅
-- [x] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
+- [x] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens ✅
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
 - [ ] Phase 5: Meta (1) — main CLI skill
 
@@ -511,3 +511,61 @@ Tests are run manually using the AI agent that will consume these skills:
 - [ ] Add `--access-level` (read/write) and `--token-only`
 - [ ] Add `infisical token renew` documentation
 - [ ] Clarify personal tokens (PAT) are managed via web UI
+
+---
+
+## Test Report: infisical-export
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` for all flags
+
+### Test 1: Top-level flags
+- **Command:** `infisical export --help`
+- **Expected:** Match skill flags
+- **Actual:** Most flags exist. **New flags**: `--expand`, `--include-imports`, `--projectId`, `--secret-overriding`, `--tags`, `--token`, `--template`, `--path`
+- **Status:** ⚠️ Partial
+- **Notes:** **`--format` only supports `dotenv`, `json`, `csv`** — skill says `env`, `yaml` (no `yaml` support!). **`--path` is for folder path**, not output file — skill conflates the two. **`--include-references` is wrong** — correct flag is `--include-imports`. **`--uppercase` and `--escape` do not exist**.
+
+### Test 2: Format flags
+- **Command:** `infisical export --help`
+- **Expected:** `env`, `json`, `yaml` formats
+- **Actual:** Formats: **`dotenv`**, **`json`**, **`csv`** — no `env` (use `dotenv`) and **no `yaml`** (skill is wrong on both)
+- **Status:** ❌ Fail
+- **Notes:** **`yaml` format does not exist** (but skill documents it). **`env` format doesn't exist** — use `dotenv`.
+
+### Test 3: Output file flag
+- **Expected:** `--path` for output file
+- **Actual:** **`--output-file` (`-o`)** is the correct flag for writing to a file. `--path` is for folder path within project.
+- **Status:** ❌ Fail
+- **Notes:** Skill uses `--path ./secrets.env` which is wrong — that's the project folder path.
+
+### Test 4: Reference vs Import flags
+- **Expected:** `--include-references`
+- **Actual:** **`--include-imports`** is the correct flag. `--include-references` does not exist.
+- **Status:** ❌ Fail
+- **Notes:** Skill documents wrong flag name.
+
+### Summary
+
+| Test | Description | Status |
+|------|-------------|--------|
+| 1 | Top-level flags | ⚠️ Missing new flags |
+| 2 | Format flags | ❌ `yaml` and `env` don't exist |
+| 3 | Output file flag | ❌ `--path` is wrong — use `--output-file` |
+| 4 | Reference flag | ❌ `--include-references` wrong — use `--include-imports` |
+
+**Key findings:**
+- **No `yaml` format** — skill documents it incorrectly. Only `dotenv`, `json`, `csv`
+- **`--path` is project folder path**, not output file — use `--output-file`
+- **No `--uppercase`, `--escape`, `--include-references`**
+- **Formats**: `dotenv` (default), `json`, `csv` — not `env`, not `yaml`
+- **New flags**: `--expand`, `--include-imports`, `--projectId`, `--secret-overriding`, `--tags`, `--token`, `--template`, `--recursive`
+
+**Actions needed:**
+- [ ] Replace `yaml` → remove from formats (doesn't exist)
+- [ ] Replace `env` → `dotenv`
+- [ ] Fix `--path` for output → use `--output-file`
+- [ ] Fix `--include-references` → `--include-imports`
+- [ ] Remove `--uppercase` and `--escape` (don't exist)
+- [ ] Add new flags: `--expand`, `--include-imports`, `--projectId`, `--template`, `--tags`, `--token`
