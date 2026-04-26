@@ -1,4 +1,4 @@
-# infisical-cli Skills
+# infisical-cli-skills
 
 A collection of AI agent skills for the [Infisical CLI](https://infisical.com/docs/cli/overview) — designed to help AI coding agents (like Claude Code, OpenCode, etc.) interact with Infisical for secrets management, authentication, dynamic secrets, SSH certificates, and more.
 
@@ -37,32 +37,17 @@ Each skill is self-contained and maps to a specific Infisical CLI domain.
 
 ### For Claude Code
 
-Copy or symlink skills into your Claude Code skills directory:
-
 ```bash
-# Find your skills directory
-ls ~/.claude/skills/
-
-# Symlink the infisical-cli skills
-ln -s /path/to/infisical-cli ~/.claude/skills/
+# Clone the repository into your Claude Code skills directory
+git clone https://github.com/ferch5003/infisical-cli-skills.git ~/.claude/skills/infisical-cli
 ```
 
 ### For OpenCode
 
-Skills are auto-discovered from the skills directory. Point OpenCode to this repository's parent directory:
-
 ```bash
-# OpenCode picks up skills from ~/.agents/skills/ by default
-# Make sure this repo is inside ~/.agents/skills/
+# Clone the repository into your OpenCode skills directory
+git clone https://github.com/ferch5003/infisical-cli-skills.git ~/.agents/skills/infisical-cli
 ```
-
-### For other AI agents
-
-Each skill is a single `SKILL.md` file. You can:
-
-- Copy individual skill files into your agent's skill directory
-- Reference the skill content directly in prompts
-- Import the skill via the agent's skill loader (e.g., `skill(name="infisical-cli")`)
 
 ## Quick Start
 
@@ -86,7 +71,7 @@ infisical dynamic-secrets generate --provider postgres --secret-name db-creds
 ## Project Structure
 
 ```
-infisical-cli/
+infisical-cli-skills/
 ├── SKILL.md                      # Main skill (routes to sub-skills)
 ├── infisical-auth/              # Authentication commands
 ├── infisical-secrets/           # Secrets CRUD
