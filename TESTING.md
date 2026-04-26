@@ -105,7 +105,7 @@ Tests are run manually using the AI agent that will consume these skills:
 
 ## Coverage Goals
 
-- [x] Phase 1: Core skills (3) — auth, init, secrets
+- [x] Phase 1: Core skills (3) — auth ✅, init, secrets
 - [ ] Phase 2: Common operations (3) — run, export, bootstrap
 - [ ] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
@@ -220,9 +220,63 @@ Tests are run manually using the AI agent that will consume these skills:
 - **`--email`, `--id`, `--name` flags for `user` don't exist** — use `infisical user get`
 
 **Actions needed:**
-- [ ] Fix `infisical logout` section → reference `infisical reset` instead
-- [ ] Replace all `--identity-id` with `--machine-identity-id`
-- [ ] Fix Kubernetes auth section with correct flags
-- [ ] Split GCP into `gcp-id-token` and `gcp-iam` sections
-- [ ] Fix `infisical user` section → use `infisical user get`
-- [ ] Remove `--reauth` and `--force` from `reset` section
+- [x] Fix `infisical logout` section → reference `infisical reset` instead (fixed in skill update)
+- [x] Replace all `--identity-id` with `--machine-identity-id` (fixed in skill update)
+- [x] Fix Kubernetes auth section with correct flags (fixed in skill update)
+- [x] Split GCP into `gcp-id-token` and `gcp-iam` sections (fixed in skill update)
+- [x] Fix `infisical user` section → use `infisical user get` (fixed in skill update)
+- [x] Remove `--reauth` and `--force` from `reset` section (fixed in skill update)
+
+---
+
+## Test Report: infisical-init
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` + interactive dry-run
+
+### Test 1: `infisical init --help`
+- **Command:** `infisical init --help`
+- **Expected:** Help output with available flags
+- **Actual:** Only `--help` flag. No `--projectId`, `--env`, or `--template` flags.
+- **Status:** ❌ Fail
+- **Notes:** **`--projectId`, `--env`, and `--template` are not valid flags** for `infisical init`. The command is fully interactive — it prompts for organization, project, and environment selection.
+
+### Test 2: Interactive init flow
+- **Command:** `infisical init`
+- **Expected:** Interactive prompts for project selection
+- **Actual:** Shows interactive picker for organization selection (works correctly)
+- **Status:** ✅ Pass
+- **Notes:** Interactive flow works as expected. Requires terminal interaction.
+
+### Test 3: `.infisical.json` structure
+- **Expected:** Config file with `projectId` and `env`
+- **Actual:** Cannot test without completing interactive flow
+- **Status:** ⚠️ Cannot verify
+- **Notes:** Skill's example config structure is consistent with what `infisical init` typically creates.
+
+### Test 4: `infisical bootstrap` (bonus discovery)
+- **Command:** `infisical bootstrap --help`
+- **Expected:** Bootstrap help
+- **Actual:** Bootstrap exists but is for **self-hosted instance initialization**, NOT project setup.
+- **Status:** ⚠️ Warning
+- **Notes:** `infisical-bootstrap` skill likely confuses `init` (project setup) with `bootstrap` (self-hosted instance setup). They are different commands. The `bootstrap` skill needs review.
+
+### Summary
+
+| Test | Description | Status |
+|------|-------------|--------|
+| 1 | `infisical init --help` flags | ❌ Wrong flags |
+| 2 | Interactive init flow | ✅ Works |
+| 3 | `.infisical.json` structure | ⚠️ Unverified |
+| 4 | `infisical bootstrap` vs `init` | ⚠️ Needs review |
+
+**Key findings:**
+- **`--projectId`, `--env`, `--template` flags do not exist** for `infisical init`
+- **`infisical init` is fully interactive** — cannot be used non-interactively without external tools
+- **`infisical bootstrap` is for self-hosted instance setup**, not project initialization
+
+**Actions needed:**
+- [ ] Remove `--projectId`, `--env`, `--template` flags from the skill
+- [ ] Clarify that `infisical init` is interactive-only
+- [ ] Review `infisical-bootstrap` skill to separate instance bootstrap from project setup
