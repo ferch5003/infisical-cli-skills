@@ -23,10 +23,11 @@ Authentication commands for Infisical CLI.
 
 | Command | Description |
 |---------|-------------|
-| `infisical login` | Authenticate with browser or credentials |
-| `infisical logout` | Clear local authentication |
-| `infisical user` | Display current user info |
-| `infisical reset` | Reset local configuration |
+| `infisical login` | Authenticate with Infisical (multiple methods) |
+| `infisical reset` | Clear local credentials and configuration |
+| `infisical user get` | Display current authenticated user info |
+| `infisical user switch` | Switch between Infisical profiles |
+| `infisical user get token` | Get the current access token |
 
 ## login
 
@@ -40,29 +41,37 @@ infisical login
 
 # Email magic link
 infisical login --email user@example.com
+
+# Organization auto-select
+infisical login --organization-slug my-org
 ```
 
 **Flags:**
 - `--email` - Email for magic link authentication
+- `--organization-id` - Organization ID for 'user' login method
+- `--organization-slug` - Auto-select organization (sub-org scope for machine identity)
 - `--interactive` - Force interactive mode
 - `--domain` - Custom Infisical instance URL
-- `--organization-slug` - Auto-select organization
+- `--password` - Password (not recommended)
 
 ### Universal Auth (machine-to-machine)
 
 ```bash
-infisical login universal-auth \
+infisical login --method universal-auth \
   --client-id <client-id> \
   --client-secret <client-secret>
 ```
 
 **Flags:**
+- `--method universal-auth` (required) - Must specify the method
 - `--client-id` (required) - Universal auth client ID
 - `--client-secret` (required) - Universal auth client secret
+- `--organization-slug` - Scope session to a sub-organization
 
 **Example with organization:**
 ```bash
-infisical login universal-auth \
+infisical login \
+  --method universal-auth \
   --client-id ua_xxxxx \
   --client-secret xxxxx \
   --organization-slug my-org
@@ -71,231 +80,196 @@ infisical login universal-auth \
 ### Kubernetes authentication
 
 ```bash
-infisical login kubernetes \
-  --identity-id <identity-id> \
-  --service-account-name <sa-name> \
-  --namespace <namespace>
+infisical login --method kubernetes \
+  --machine-identity-id <identity-id> \
+  --service-account-token-path <token-path>
 ```
 
 **Flags:**
-- `--identity-id` (required) - Machine identity ID
-- `--service-account-name` (required) - Kubernetes service account name
-- `--namespace` - Kubernetes namespace (default: default)
+- `--method kubernetes` (required)
+- `--machine-identity-id` (required) - Machine identity ID (`ia_xxxxx`)
+- `--service-account-token-path` (required) - Path to the service account token file
+- `--organization-slug` - Scope to sub-organization
 
 **Example:**
 ```bash
-infisical login kubernetes \
-  --identity-id ia_xxxxx \
-  --service-account-name my-app \
-  --namespace production
+infisical login \
+  --method kubernetes \
+  --machine-identity-id ia_xxxxx \
+  --service-account-token-path /var/run/secrets/tokens/service-account-token
 ```
 
 ### Azure authentication
 
 ```bash
-infisical login azure \
-  --identity-id <identity-id> \
-  --client-id <client-id> \
-  --tenant-id <tenant-id>
+infisical login --method azure \
+  --machine-identity-id <identity-id> \
+  --client-id <azure-client-id> \
+  --tenant-id <azure-tenant-id>
 ```
 
 **Flags:**
-- `--identity-id` (required) - Machine identity ID
-- `--client-id` (required) - Azure client ID
+- `--method azure` (required)
+- `--machine-identity-id` (required) - Machine identity ID (`ia_xxxxx`)
+- `--client-id` (required) - Azure client ID (application ID)
 - `--tenant-id` (required) - Azure tenant ID
 
-**Example:**
+### GCP authentication (two methods)
+
+**Method 1: GCP ID Token (via OIDC)**
 ```bash
-infisical login azure \
-  --identity-id ia_xxxxx \
-  --client-id xxxxx-xxxx-xxxx \
-  --tenant-id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+infisical login --method gcp-id-token --jwt <id-token>
 ```
 
-### GCP authentication
-
+**Method 2: GCP IAM (via service account key)**
 ```bash
-infisical login gcp \
-  --identity-id <identity-id> \
-  --service-account-email <email>
+infisical login --method gcp-iam \
+  --machine-identity-id <identity-id> \
+  --service-account-key-file-path <key-file-path>
 ```
 
-**Flags:**
-- `--identity-id` (required) - Machine identity ID
-- `--service-account-email` (required) - GCP service account email
-
-**Example:**
-```bash
-infisical login gcp \
-  --identity-id ia_xxxxx \
-  --service-account-email my-app@project.iam.gserviceaccount.com
-```
+**Flags for gcp-iam:**
+- `--method gcp-iam` (required)
+- `--machine-identity-id` (required) - Machine identity ID
+- `--service-account-key-file-path` (required) - Path to the GCP service account key JSON file
 
 ### AWS authentication
 
 ```bash
-infisical login aws \
-  --identity-id <identity-id> \
+infisical login --method aws-iam \
+  --machine-identity-id <identity-id> \
   --role-arn <arn>
 ```
 
 **Flags:**
-- `--identity-id` (required) - Machine identity ID
+- `--method aws-iam` (required)
+- `--machine-identity-id` (required) - Machine identity ID (`ia_xxxxx`)
 - `--role-arn` (required) - AWS role ARN
 
 **Example:**
 ```bash
-infisical login aws \
-  --identity-id ia_xxxxx \
+infisical login \
+  --method aws-iam \
+  --machine-identity-id ia_xxxxx \
   --role-arn arn:aws:iam::123456789012:role/MyInfisicalRole
 ```
 
 ### OIDC authentication
 
 ```bash
-infisical login oidc \
-  --identity-id <identity-id> \
-  --issuer-url <url> \
-  --role-arn <arn>
+infisical login --method oidc-auth --jwt <oidc-token>
 ```
 
 **Flags:**
-- `--identity-id` (required) - Machine identity ID
-- `--issuer-url` (required) - OIDC issuer URL
-- `--role-arn` - AWS role ARN (optional)
+- `--method oidc-auth` (required)
+- `--jwt` (required) - OIDC ID token
 
 **Example:**
 ```bash
-infisical login oidc \
-  --identity-id ia_xxxxx \
-  --issuer-url https://accounts.google.com \
-  --role-arn arn:aws:iam::123456789012:role/OIDCRole
+infisical login \
+  --method oidc-auth \
+  --jwt eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### JWT authentication
+### JWT / OIDC token authentication
 
 ```bash
-infisical login jwt --token <jwt-token>
+infisical login --method jwt-auth --jwt <token>
 ```
 
 **Flags:**
-- `--token` (required) - JWT token
-
-**Example:**
-```bash
-infisical login jwt --token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-### Common flags for login
-
-| Flag | Description |
-|------|-------------|
-| `--method` | Auth method (browser, universal-auth, kubernetes, azure, gcp, aws, oidc, jwt) |
-| `--client-id` | Client ID for universal-auth |
-| `--client-secret` | Client secret for universal-auth |
-| `--email` | Email for magic link |
-| `--password` | Password (not recommended) |
-| `--interactive` | Force interactive prompt |
-| `--plain` | Output token only (for scripting) |
-| `--silent` | Suppress non-essential output |
-| `--domain` | Custom Infisical instance |
-| `--organization-slug` | Auto-select organization |
-
-### Token output for scripting
-
-Use `--plain --silent` to output only the token for scripting:
-
-```bash
-# Get token for use in scripts
-TOKEN=$(infisical login --plain --silent --method universal-auth --client-id xxx --client-secret xxx)
-echo $TOKEN
-
-# Use in CI/CD
-export INFISICAL_TOKEN=$(infisical login --plain --silent --method universal-auth --client-id $CLIENT_ID --client-secret $CLIENT_SECRET)
-```
+- `--method jwt-auth` (required)
+- `--jwt` (required) - JWT token
 
 ## logout
 
-Clear local authentication credentials.
+There is **no `infisical logout` command**. Use `infisical reset` instead to clear local credentials.
+
+## reset
+
+Clear local Infisical configuration and credentials.
 
 ```bash
-# Logout from current session
-infisical logout
-
-# Logout and clear cached data
-infisical logout --clear-cache
+# Clear all Infisical data from this machine
+infisical reset
 ```
 
-**Flags:**
-- `--clear-cache` - Also clear cached secrets and data
-- `--global` - Clear global configuration (all domains)
-
-## user
+## user get
 
 Display current authenticated user information.
 
 ```bash
-# Show current user
-infisical user
+# Show current user details
+infisical user get
 
-# Get user email only
-infisical user --email
-
-# Get user ID only
-infisical user --id
+# Get current access token (useful for scripting)
+infisical user get token --plain
 ```
 
-**Flags:**
-- `--email` - Output only email
-- `--id` - Output only user ID
-- `--name` - Output only name
-- `--organization` - Show organization membership
+**Subcommands:**
+- `infisical user get` - Get user profile info (email, name, etc.)
+- `infisical user get token` - Get the access token (use `--plain` for scripting)
 
-## reset
+## user switch
 
-Reset local Infisical configuration.
+Switch between multiple Infisical profiles.
 
 ```bash
-# Reset to defaults
-infisical reset
-
-# Reset and re-authenticate
-infisical reset --reauth
+infisical user switch
 ```
-
-**Flags:**
-- `--reauth` - Automatically start re-authentication after reset
-- `--force` - Skip confirmation prompt
 
 ## Authentication workflow decisions
 
 ```
 Need authentication for:
-├─ Local development → infisical login (browser)
-├─ CI/CD pipeline → Service token or Universal Auth
-├─ Kubernetes pod → Kubernetes auth
-├─ Azure VM/workload → Azure auth
-├─ GCP VM/workload → GCP auth
-├─ AWS EC2/Lambda → AWS auth
-├─ OIDC provider → OIDC auth
-└─ Existing JWT → JWT auth
+├─ Local development → infisical login (browser, user method)
+├─ CI/CD pipeline → --method universal-auth
+├─ Kubernetes pod → --method kubernetes --machine-identity-id
+├─ Azure VM/workload → --method azure
+├─ GCP VM (OIDC) → --method gcp-id-token --jwt
+├─ GCP VM (IAM) → --method gcp-iam --machine-identity-id
+├─ AWS EC2/Lambda → --method aws-iam --machine-identity-id
+├─ OIDC provider → --method oidc-auth --jwt
+└─ Existing JWT → --method jwt-auth --jwt
 ```
 
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `INFISICAL_TOKEN` | Use specific token (bypasses login) |
-| `INFISICAL_API_URL` | API endpoint (default: https://api.infisical.com) |
+| `INFISICAL_TOKEN` | Use specific token directly (bypasses login) |
+| `INFISICAL_API_URL` | API endpoint (default: https://app.infisical.com/api) |
 | `INFISICAL_DISABLE_UPDATE_CHECK` | Set to 1 to disable update check |
+
+## Token output for scripting
+
+Use `--plain --silent` with universal auth to output only the token:
+
+```bash
+# Get token for use in scripts
+TOKEN=$(infisical login --plain --silent \
+  --method universal-auth \
+  --client-id xxx \
+  --client-secret xxx)
+echo $TOKEN
+
+# Use in CI/CD
+export INFISICAL_TOKEN=$(infisical login --plain --silent \
+  --method universal-auth \
+  --client-id $CLIENT_ID \
+  --client-secret $CLIENT_SECRET)
+```
 
 ## Token storage
 
-After successful login, credentials are stored in:
-- **Linux/macOS**: `~/.config/infisical/config.json`
-- **Windows**: `%APPDATA%/infisical/config.json`
+After successful login, credentials are stored at:
+- `infisical vault` - Manage token storage location
+- Default Linux/macOS: `~/.config/infisical/config.json`
+- Default Windows: `%APPDATA%/infisical/config.json`
 
-**Security:** Protect this file - it contains your authentication tokens.
+Use `infisical vault` to configure custom storage paths.
+
+**Security:** Protect this file — it contains your authentication tokens.
 
 ## Related skills
 

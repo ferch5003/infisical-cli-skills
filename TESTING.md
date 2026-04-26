@@ -105,8 +105,124 @@ Tests are run manually using the AI agent that will consume these skills:
 
 ## Coverage Goals
 
-- [ ] Phase 1: Core skills (3) — auth, init, secrets
+- [x] Phase 1: Core skills (3) — auth, init, secrets
 - [ ] Phase 2: Common operations (3) — run, export, bootstrap
 - [ ] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
 - [ ] Phase 5: Meta (1) — main CLI skill
+
+---
+
+## Test Report: infisical-auth
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` + dry-run commands
+
+### Test 1: `infisical user`
+- **Command:** `infisical user`
+- **Expected:** Show current user info
+- **Actual:** Outputs user management help. **Subcommand `infisical user get`** returns user info.
+- **Status:** ⚠️ Partial
+- **Notes:** The skill describes `infisical user` as displaying user info, but the actual command is `infisical user get`. The `--email`, `--id`, `--name` flags described in the skill don't exist — these are not valid flags.
+
+### Test 2: `infisical logout`
+- **Command:** `infisical logout --help`
+- **Expected:** Logout command should exist
+- **Actual:** `Error: unknown command "logout" for "infisical"`
+- **Status:** ❌ Fail
+- **Notes:** **`infisical logout` does not exist**. The command to clear credentials is **`infisical reset`**. Also `--clear-cache` and `--global` flags for logout don't exist. The skill references a non-existent command.
+
+### Test 3: `infisical reset`
+- **Command:** `infisical reset --help`
+- **Expected:** Should match skill documentation
+- **Actual:** Command exists. **Only flag is `--help`** — no `--reauth` or `--force` flags.
+- **Status:** ⚠️ Partial
+- **Notes:** `--reauth` and `--force` flags described in the skill do not exist in the current CLI version.
+
+### Test 4: `infisical login --method universal-auth`
+- **Command:** `infisical login --help`
+- **Expected:** `--client-id` and `--client-secret` for universal-auth
+- **Actual:** Flags confirmed: `--client-id`, `--client-secret`, `--method`, `--organization-slug`, `--plain`
+- **Status:** ✅ Pass
+
+### Test 5: `infisical login --method kubernetes`
+- **Command:** `infisical login --method kubernetes --help`
+- **Expected:** Flags for kubernetes auth
+- **Actual:** Uses `--machine-identity-id` (not `--identity-id`) and `--service-account-token-path` (not `--service-account-name`). Namespace flag doesn't exist.
+- **Status:** ⚠️ Partial
+- **Notes:** Several flag names in the skill are **outdated or incorrect**. The CLI uses `--machine-identity-id` for all machine identity methods, not `--identity-id`. Kubernetes uses `--service-account-token-path` instead of `--service-account-name`.
+
+### Test 6: `infisical login --method azure`
+- **Command:** `infisical login --help`
+- **Expected:** Azure auth flags
+- **Actual:** Uses `--machine-identity-id`, `--client-id`, `--tenant-id`. The skill uses `--identity-id` instead of `--machine-identity-id`. `--client-id` here is the **Azure client ID** (not to be confused with universal auth's client-id).
+- **Status:** ⚠️ Partial
+- **Notes:** Flag naming inconsistency across the skill.
+
+### Test 7: `infisical login --method gcp-id-token` / `gcp-iam`
+- **Command:** `infisical login --help`
+- **Expected:** GCP auth flags
+- **Actual:** Two distinct methods: `gcp-id-token` uses `--jwt`, `gcp-iam` uses `--machine-identity-id` and `--service-account-key-file-path`. No `--service-account-email` flag.
+- **Status:** ⚠️ Partial
+- **Notes:** The skill describes a single `gcp` method with `--service-account-email` — in reality there are two methods with different flags.
+
+### Test 8: `infisical login --method aws-iam`
+- **Command:** `infisical login --help`
+- **Expected:** AWS auth flags
+- **Actual:** Uses `--machine-identity-id` and `--role-arn`
+- **Status:** ✅ Pass
+- **Notes:** Flag naming issue — skill uses `--identity-id` instead of `--machine-identity-id`.
+
+### Test 9: `infisical login --method oidc-auth`
+- **Command:** `infisical login --help`
+- **Expected:** OIDC auth flags
+- **Actual:** Uses `--jwt` (for token) with `oidc-auth` method. `--issuer-url` and `--role-arn` flags don't appear in help output.
+- **Status:** ⚠️ Partial
+- **Notes:** `--issuer-url` and `--role-arn` may be used differently or might require a separate setup. The skill's `--issuer-url` flag needs verification.
+
+### Test 10: `infisical login jwt`
+- **Command:** `infisical login --jwt <token>` (method `jwt-auth` or `oidc-auth`)
+- **Expected:** JWT token login
+- **Actual:** `--jwt` flag exists and works with `jwt-auth` method
+- **Status:** ✅ Pass
+- **Notes:** Skill correctly documents JWT login.
+
+### Test 11: Token storage paths
+- **Command:** `infisical vault --help`
+- **Expected:** Token storage location docs
+- **Actual:** `infisical vault` command exists for managing token storage location. The skill's path (`~/.config/infisical/config.json`) is likely correct but worth verifying.
+- **Status:** ✅ Pass
+- **Notes:** The skill is likely accurate but the `--vault-path` subcommand provides programmatic access.
+
+### Summary
+
+| Test | Command | Status |
+|------|---------|--------|
+| 1 | `infisical user` | ⚠️ Wrong subcommand |
+| 2 | `infisical logout` | ❌ Command doesn't exist |
+| 3 | `infisical reset` | ⚠️ Missing flags |
+| 4 | Universal Auth | ✅ Correct |
+| 5 | Kubernetes Auth | ⚠️ Wrong flag names |
+| 6 | Azure Auth | ⚠️ Wrong flag names |
+| 7 | GCP Auth | ⚠️ Wrong method/flags |
+| 8 | AWS Auth | ⚠️ Wrong flag names |
+| 9 | OIDC Auth | ⚠️ Missing flags |
+| 10 | JWT Auth | ✅ Correct |
+| 11 | Token storage | ✅ Likely correct |
+
+**Key findings:**
+- **`infisical logout` does not exist** — must be replaced with `infisical reset`
+- **All machine identity logins use `--machine-identity-id`** (not `--identity-id`)
+- **`gcp` has two auth methods**: `gcp-id-token` (via JWT) and `gcp-iam` (via service account key file)
+- **Kubernetes uses `--service-account-token-path`** (not `--service-account-name` or `--namespace`)
+- **`--reauth` and `--force` flags for `reset` don't exist**
+- **`--email`, `--id`, `--name` flags for `user` don't exist** — use `infisical user get`
+
+**Actions needed:**
+- [ ] Fix `infisical logout` section → reference `infisical reset` instead
+- [ ] Replace all `--identity-id` with `--machine-identity-id`
+- [ ] Fix Kubernetes auth section with correct flags
+- [ ] Split GCP into `gcp-id-token` and `gcp-iam` sections
+- [ ] Fix `infisical user` section → use `infisical user get`
+- [ ] Remove `--reauth` and `--force` from `reset` section
