@@ -1,162 +1,221 @@
-# Infisical Secrets Skill
+---
+name: infisical-secrets
+description: Infisical CLI secrets CRUD operations. Use when user mentions infisical secrets, manage secrets, secret management, list secrets, get secret, set secret, delete secret.
+metadata:
+  openclaw:
+    requires:
+      bins: [infisical]
+      credentials:
+        - name: INFISICAL_TOKEN
+          description: Infisical personal access token or service token
+          required: true
+    network:
+      - description: Outbound HTTPS to Infisical API
+        scope: secrets CRUD operations
+---
 
-## Metadata
+# infisical-secrets
 
-- **name**: infisical-secrets
-- **Description**: Infisical CLI secrets CRUD operations
-- **Triggers**: infisical secrets, manage secrets, secret management
+CRUD operations for secrets in Infisical.
 
-## Commands
+## Triggers
 
-### Primary Operations
+- `infisical secrets` / `infisical secrets list`
+- `infisical secrets get`
+- `infisical secrets set`
+- `infisical secrets delete`
+- `infisical secrets folders`
 
-| Operation | Command | Description |
-|-----------|---------|-------------|
-| List secrets | `infisical secrets list` | List all secrets in a project/folder |
-| Get secret | `infisical secrets get` | Retrieve a specific secret value |
-| Set secret | `infisical secrets set` | Create or update a secret |
-| Delete secret | `infisical secrets delete` | Remove a secret |
-| List folders | `infisical secrets folders` | List secret folders/path structure |
-| Generate ENV | `infisical secrets generate-example-env` | Generate .env from secrets |
+## Global Flags
 
-## Flags
+These flags apply to all `infisical secrets` subcommands.
 
-| Flag | Description |
-|------|-------------|
-| `--projectId <id>` | Project ID to operate on |
-| `--env <env>` | Environment (dev, staging, prod) |
-| `--path <path>` | Folder path within project |
-| `--expand` | Expand secret references |
-| `--plain` | Output plain values (no masking) |
-| `--silent` | Suppress non-essential output |
-| `--secret-name <name>` | Name of secret to operate on |
-| `--secret-value <value>` | Value for secret (set operation) |
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--env <env>` | Environment name | `dev` |
+| `--path <path>` | Folder path within project | `/` |
+| `--projectId <id>` | Project ID (for machine identity auth) | auto |
+| `--token <token>` | Service/machine identity token | auto |
+| `--expand` | Expand secret references (`${SECRET_KEY}`) | `true` |
+| `--include-imports` | Include imported linked secrets | `true` |
+| `--recursive` | Fetch secrets from all sub-folders | `false` |
+| `--secret-overriding` | Prefer personal secrets over shared | `true` |
+| `--tags <slug,slug>` | Filter by tag slugs | — |
+| `--output <format>` | Output format: `yaml`, `json`, `dotenv` | — |
+| `--plain` | Plain output (one per line) — **deprecated**, use `--output dotenv` | — |
+| `--silent` | Suppress non-essential output | — |
 
-## Sub-commands
+## List secrets
 
-### `infisical secrets list`
-
-List all secrets in a project or path.
+**Note:** There is no `list` subcommand. `infisical secrets` (no subcommand) defaults to listing.
 
 ```bash
-# List all secrets in default environment
-infisical secrets list
+# List all secrets in default env (dev) at root path
+infisical secrets
 
 # List secrets in specific environment
-infisical secrets list --env=production
+infisical secrets --env=production
 
 # List secrets in specific project
-infisical secrets list --projectId=<project-id> --env=staging
+infisical secrets --projectId=<project-id> --env=staging
 
-# List secrets in a specific folder path
-infisical secrets list --path=/backend --env=development
+# List secrets in a folder path
+infisical secrets --path=/backend --env=development
 
 # List with expanded references
-infisical secrets list --expand --env=dev
+infisical secrets --expand --env=dev
+
+# List from all sub-folders
+infisical secrets --recursive --env=production
+
+# Filter by tags
+infisical secrets --tags=api,frontend --env=production
+
+# JSON output
+infisical secrets --output=json --env=production
+
+# Plain dotenv output (deprecated --plain)
+infisical secrets --output=dotenv --env=production
 ```
 
-### `infisical secrets get`
+## Get secret
 
-Retrieve a single secret value.
+Takes **positional arguments** — secret names passed directly, not via `--secret-name`.
 
 ```bash
-# Get secret by name
+# Get one secret
 infisical secrets get DATABASE_URL
 
-# Get secret in production
+# Get multiple secrets at once
+infisical secrets get DATABASE_URL API_KEY REDIS_URL
+
+# Get in production environment
 infisical secrets get API_KEY --env=production
 
-# Get with project specified
-infisical secrets get --secret-name=DB_PASSWORD --projectId=<project-id> --env=dev
+# Get in a folder path
+infisical secrets get API_KEY --path=/backend --env=production
 
-# Get plain output (no masking)
-infisical secrets get SECRET_VALUE --plain
+# Get with project specified
+infisical secrets get DB_PASSWORD --projectId=<id> --env=dev
+
+# JSON output
+infisical secrets get API_KEY --output=json --env=production
+
+# Include imports
+infisical secrets get API_KEY --include-imports
 ```
 
-### `infisical secrets set`
+## Set secret
 
-Create or update a secret.
+Takes **`KEY=VALUE` pairs as positional arguments**. There are no `--secret-name` or `--secret-value` flags.
 
 ```bash
-# Set a secret (interactive or inline)
+# Set a single secret
 infisical secrets set API_KEY=abc123
+
+# Set multiple secrets at once
+infisical secrets set API_KEY=abc123 DATABASE_URL=postgres://localhost/db
 
 # Set in specific environment
 infisical secrets set DATABASE_URL=postgres://... --env=production
 
-# Set with explicit project and path
-infisical secrets set --secret-name=STRIPE_KEY --secret-value=sk_xxx --projectId=<id> --env=staging --path=/payments
+# Set in a folder path
+infisical secrets set STRIPE_KEY=sk_xxx --path=/payments --env=production
 
-# Set multiple secrets
-infisical secrets set HOST=localhost PORT=3000
+# Set with project ID
+infisical secrets set DB_PASSWORD=secret --projectId=<id> --env=staging
+
+# Set secret type (personal or shared — defaults to shared)
+infisical secrets set API_KEY=value --type=shared --env=production
+infisical secrets set MY_SECRET=value --type=personal --env=production
+
+# Load secrets from a .env or YAML file (mutually exclusive with inline pairs)
+infisical secrets set --file=./secrets.env --env=production
+infisical secrets set --file=./secrets.yaml --env=production
 ```
 
-### `infisical secrets delete`
+**Key flags for set:**
+- `--type personal|shared` — defaults to `shared`
+- `--file <path>` — load from `.env` or YAML file
+- `--path` — folder path (default `/`)
 
-Remove a secret.
+## Delete secret
+
+Takes **positional arguments** — secret names passed directly, not via `--secret-name`.
 
 ```bash
-# Delete a secret
+# Delete a secret (deletes personal secret by default)
 infisical secrets delete API_KEY
+
+# Delete multiple secrets at once
+infisical secrets delete API_KEY DB_PASSWORD OLD_KEY
+
+# Delete shared secret
+infisical secrets delete API_KEY --type=shared --env=production
+
+# Delete personal secret
+infisical secrets delete API_KEY --type=personal --env=production
 
 # Delete in specific environment
 infisical secrets delete DB_PASSWORD --env=production
 
-# Delete with full path
-infisical secrets delete --secret-name=OLD_SECRET --projectId=<id> --env=staging --path=/legacy
+# Delete from a folder path
+infisical secrets delete OLD_SECRET --path=/legacy --env=staging
 ```
 
-### `infisical secrets folders`
+**Important:** The **default for `delete` is `--type=personal`**, while `set` defaults to `shared`. This is a common source of confusion.
 
-Manage folder structure for secrets organization.
+## Folders
+
+### List folders
+
+Use `infisical secrets folders get` (not bare `infisical secrets folders`).
 
 ```bash
-# List folders
-infisical secrets folders
+# List folders at root
+infisical secrets folders get
+
+# List folders in specific environment
+infisical secrets folders get --env=production
+
+# List folders at a specific path
+infisical secrets folders get --path=/backend --env=development
 
 # List folders in specific project
-infisical secrets folders --projectId=<project-id> --env=development
-
-# List folders at path
-infisical secrets folders --path=/backend/services
+infisical secrets folders get --projectId=<id> --env=staging
 ```
 
-### `infisical secrets folders create`
+### Create folder
 
-Create a new folder for organizing secrets.
+Use `--name` (or `-n`) for the folder name and `--path` for the **parent path**.
 
 ```bash
-# Create a new folder
-infisical secrets folders create --path=/backend
+# Create folder at root
+infisical secrets folders create --name=backend
 
-# Create nested folder
-infisical secrets folders create --path=/backend/services/api
+# Create folder at root (shorthand)
+infisical secrets folders create -n backend --env=production
 
-# Create folder in specific environment
-infisical secrets folders create --path=/legacy --env=production
+# Create folder inside a path
+infisical secrets folders create --name=services --path=/backend --env=production
+
+# Create nested structure
+infisical secrets folders create --name=api --path=/backend --env=production
 ```
 
-### `infisical secrets folders delete`
+### Delete folder
 
-Delete a folder and optionally its secrets.
+Use `--name` (or `-n`) for the folder name and `--path` for the **parent path**.
 
 ```bash
-# Delete an empty folder
-infisical secrets folders delete --path=/backend/temp
+# Delete folder at root
+infisical secrets folders delete --name=backend
 
-# Delete folder with confirmation
-infisical secrets folders delete --path=/legacy --force
-
-# Delete folder in specific environment
-infisical secrets folders delete --path=/old --env=staging
-
-# Delete folder and all secrets within
-infisical secrets folders delete --path=/legacy --recursive
+# Delete folder inside a path
+infisical secrets folders delete --name=services --path=/backend --env=production
 ```
 
-### `infisical secrets generate-example-env`
-
-Generate a `.env` file from existing secrets.
+## Generate .env file
 
 ```bash
 # Generate .env from secrets
@@ -165,44 +224,49 @@ infisical secrets generate-example-env
 # Generate for specific environment
 infisical secrets generate-example-env --env=production
 
-# Generate with specific project
-infisical secrets generate-example-env --projectId=<id> --env=staging
+# Generate from a folder
+infisical secrets generate-example-env --path=/backend --env=production
 
-# Generate and save to file
-infisical secrets generate-example-env > .env.staging
+# Redirect to file
+infisical secrets generate-example-env --env=production > .env.production
 ```
+
+## Output Formats
+
+| Format | Flag | Use case |
+|--------|------|----------|
+| Plain (one per line) | `--output dotenv` | `.env` files, scripting |
+| JSON | `--output json` | API integration, parsing |
+| YAML | `--output yaml` | Config files, CI/CD |
+| Table (default) | — | Human readability |
 
 ## Common Patterns
 
-### Batch Operations
-
+### Export secrets to .env
 ```bash
-# Export all secrets to .env
-infisical secrets list --plain --env=production > .env
-
-# Sync secrets between environments
-SECRETS=$(infisical secrets list --env=staging --plain)
-echo "$SECRETS" | while read line; do
-  key=$(echo $line | cut -d= -f1)
-  value=$(echo $line | cut -d= -f2)
-  infisical secrets set "$key=$value" --env=production
-done
+infisical secrets --env=production --output=dotenv > .env
 ```
 
-### Script Integration
+### Batch update from file
+```bash
+# Create a secrets.env file, then:
+infisical secrets set --file=./secrets.env --env=production
+```
 
+### Script with secrets
 ```bash
 #!/bin/bash
-# Fetch secrets and run app
-infisical secrets list --env=production --plain --path=/api > .env
+infisical secrets --env=production --output=dotenv > .env
 source .env
 ./start-server.sh
 ```
 
-## Tips
+## Important Notes
 
-- Use `--plain` flag when output is piped or redirected
-- Use `--silent` for cleaner CI/CD output
-- Organize secrets in folders matching your project structure
-- Use `--expand` to resolve secret references in values
-- Default environment is usually `dev` or controlled by config
+- **`--secret-name` and `--secret-value` flags do not exist** — use positional arguments
+- **`--plain` is deprecated** — use `--output dotenv` instead
+- **`--expand` defaults to `true`** — secrets referencing other secrets (`${OTHER_SECRET}`) are auto-resolved
+- **`--include-imports` defaults to `true`** — linked/imported secrets are included
+- **Delete defaults to `type=personal`** — use `--type=shared` to delete shared secrets
+- **Set defaults to `type=shared`** — use `--type=personal` for personal overrides
+- **`--path` in folder commands is the parent path**, `--name` is the folder name itself

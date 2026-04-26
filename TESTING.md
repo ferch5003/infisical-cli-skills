@@ -105,7 +105,7 @@ Tests are run manually using the AI agent that will consume these skills:
 
 ## Coverage Goals
 
-- [x] Phase 1: Core skills (3) — auth ✅, init, secrets
+- [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets
 - [ ] Phase 2: Common operations (3) — run, export, bootstrap
 - [ ] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
@@ -280,3 +280,124 @@ Tests are run manually using the AI agent that will consume these skills:
 - [ ] Remove `--projectId`, `--env`, `--template` flags from the skill
 - [ ] Clarify that `infisical init` is interactive-only
 - [ ] Review `infisical-bootstrap` skill to separate instance bootstrap from project setup
+
+---
+
+## Test Report: infisical-secrets
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` for all subcommands
+
+### Test 1: Global flags (top-level)
+- **Expected:** `--env`, `--expand`, `--include-imports`, `--output`, `--path`, `--plain`, `--projectId`, `--recursive`, `--secret-overriding`, `--tags`, `--token`
+- **Actual:** All present. **`--expand` defaults to `true`** (not `false`). **`--include-imports` defaults to `true`**.
+- **Status:** ✅ Pass
+
+### Test 2: `infisical secrets list` (implicit — no `list` subcommand)
+- **Command:** `infisical secrets --help`
+- **Expected:** There is no `infisical secrets list` — list is the default behavior when no subcommand is given
+- **Actual:** `infisical secrets` defaults to listing. `infisical secrets list` would not work — the correct command is just `infisical secrets`
+- **Status:** ❌ Fail
+- **Notes:** The skill documents `infisical secrets list` but there is **no `list` subcommand**. List is the default behavior of `infisical secrets`.
+
+### Test 3: `infisical secrets get`
+- **Command:** `infisical secrets get --help`
+- **Expected:** Flags for getting secrets
+- **Actual:** `infisical secrets get [secrets]` — takes positional arguments (one or more secret names). Same flags as top-level. No `--secret-name` flag.
+- **Status:** ⚠️ Partial
+- **Notes:** **`--secret-name` flag does not exist**. Pass secret names as positional arguments instead. The skill's example `infisical secrets get DATABASE_URL` is correct — the flag-based form is wrong.
+
+### Test 4: `infisical secrets set`
+- **Command:** `infisical secrets set --help`
+- **Expected:** Flags for setting secrets
+- **Actual:** `infisical secrets set [secrets]` — takes `KEY=VALUE` pairs as positional args. Flags: `--file`, `--path`, `--projectId`, `--token`, `--type`
+- **Status:** ⚠️ Partial
+- **Notes:** **`--secret-name` and `--secret-value` do not exist**. Use `KEY=VALUE` syntax as positional args. **New flag discovered**: `--file` (load from .env or YAML file). **New flag**: `--type personal|shared`.
+
+### Test 5: `infisical secrets delete`
+- **Command:** `infisical secrets delete --help`
+- **Expected:** Flags for deleting secrets
+- **Actual:** `infisical secrets delete [secrets]` — takes positional args (one or more secret names). **`--type personal|shared`** defaults to `personal`. **`--force` flag does not exist**.
+- **Status:** ⚠️ Partial
+- **Notes:** **`--secret-name` does not exist**. **`--recursive` does not exist** for delete. **`--force` flag does not exist**.
+
+### Test 6: `infisical secrets folders`
+- **Command:** `infisical secrets folders --help`
+- **Expected:** Folder subcommands
+- **Actual:** Three subcommands: `create`, `delete`, `get`. **No `infisical secrets folders` (bare) listed in help**.
+- **Status:** ⚠️ Partial
+- **Notes:** **`infisical secrets folders` (bare)** — may work but is not documented in help. The skill uses bare `infisical secrets folders` for listing but actual subcommand is `infisical secrets folders get`.
+
+### Test 7: `infisical secrets folders create`
+- **Command:** `infisical secrets folders create --help`
+- **Expected:** Flags for creating folders
+- **Actual:** `--name` (or `-n`/`--path` shorthand) and `--path`. **`--path` here means parent path** (default `/`). **`--recursive` does not exist**.
+- **Status:** ⚠️ Partial
+- **Notes:** The skill uses `--path=/backend` as the folder name, but **`--path` is the parent path** and `--name` is the folder name itself.
+
+### Test 8: `infisical secrets folders delete`
+- **Command:** `infisical secrets folders delete --help`
+- **Expected:** Flags for deleting folders
+- **Actual:** `--name` (or `-n`/`--path`) and `--path`. **`--recursive` and `--force` do not exist**.
+- **Status:** ⚠️ Partial
+- **Notes:** Same `--path` vs `--name` confusion. **`--recursive` and `--force` are not valid flags**.
+
+### Test 9: `infisical secrets folders get`
+- **Command:** `infisical secrets folders get --help`
+- **Expected:** Flags for listing folders
+- **Actual:** `--path` and `--output`. Correct subcommand found.
+- **Status:** ✅ Pass
+- **Notes:** The skill uses bare `infisical secrets folders` for listing — the correct command is `infisical secrets folders get`.
+
+### Test 10: `infisical secrets generate-example-env`
+- **Command:** `infisical secrets generate-example-env --help`
+- **Expected:** Flags
+- **Actual:** `--path`, `--projectId`, `--token`. **No `--env` flag** at subcommand level (env is global).
+- **Status:** ⚠️ Partial
+- **Notes:** **`--env` is a global flag** on `infisical secrets`, not specific to this subcommand. The skill correctly passes `--env` but calls it a subcommand flag.
+
+### Test 11: `--output` format (bonus discovery)
+- **Command:** `infisical secrets --help`
+- **Expected:** Output format options
+- **Actual:** **`--output` supports `yaml`, `json`, `dotenv`** (not just plain text)
+- **Status:** ✅ Pass
+- **Notes:** **`--plain` is deprecated** — use `--output dotenv` instead.
+
+### Summary
+
+| Test | Command | Status |
+|------|---------|--------|
+| 1 | Global flags | ✅ Mostly correct |
+| 2 | `infisical secrets list` | ❌ No `list` subcommand |
+| 3 | `infisical secrets get` | ⚠️ Wrong flag (`--secret-name`) |
+| 4 | `infisical secrets set` | ⚠️ Wrong flags + new `--file` and `--type` |
+| 5 | `infisical secrets delete` | ⚠️ Wrong flags + `--type` defaulting to `personal` |
+| 6 | `infisical secrets folders` | ⚠️ Bare command vs `get` subcommand |
+| 7 | `infisical secrets folders create` | ⚠️ `--path`/`--name` confusion, no `--recursive` |
+| 8 | `infisical secrets folders delete` | ⚠️ `--path`/`--name` confusion, no `--recursive`/`--force` |
+| 9 | `infisical secrets folders get` | ✅ Correct |
+| 10 | `generate-example-env` | ⚠️ `--env` is global not subcommand flag |
+| 11 | `--output` format | ✅ `yaml`, `json`, `dotenv` (plain deprecated) |
+
+**Key findings:**
+- **`infisical secrets list` does not exist** — default behavior of `infisical secrets` (no subcommand) is list
+- **`--secret-name` and `--secret-value` do not exist** — use positional args for secret names and `KEY=VALUE` for values
+- **`--recursive` and `--force` for folders delete do not exist**
+- **`--path` in folders subcommands is the parent path**, `--name` is the folder name
+- **`set --type personal|shared`** (defaults to `shared`)
+- **`delete --type personal|shared`** (defaults to `personal` — **important difference**)
+- **`set --file`** for loading from `.env` or YAML file
+- **`--plain` is deprecated** — use `--output dotenv`
+- **`--expand` defaults to `true`**
+- **`--include-imports` defaults to `true`**
+
+**Actions needed:**
+- [ ] Replace `infisical secrets list` with `infisical secrets`
+- [ ] Remove `--secret-name` and `--secret-value` from all commands — use positional args
+- [ ] Fix folders: `--path` is parent path, `--name` is folder name
+- [ ] Remove `--recursive` and `--force` from folders delete
+- [ ] Add `--file` and `--type` to set section
+- [ ] Add `--type` to delete section (defaults to `personal` — important!)
+- [ ] Update `--output` to note `--plain` is deprecated
+- [ ] Clarify `--env` is a global flag, not subcommand-specific
