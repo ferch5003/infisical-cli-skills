@@ -105,8 +105,8 @@ Tests are run manually using the AI agent that will consume these skills:
 
 ## Coverage Goals
 
-- [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets
-- [ ] Phase 2: Common operations (3) — run, export, bootstrap
+- [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets ✅
+- [x] Phase 2: Common operations (3) — run, export, bootstrap
 - [ ] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
 - [ ] Phase 5: Meta (1) — main CLI skill
@@ -401,3 +401,50 @@ Tests are run manually using the AI agent that will consume these skills:
 - [ ] Add `--type` to delete section (defaults to `personal` — important!)
 - [ ] Update `--output` to note `--plain` is deprecated
 - [ ] Clarify `--env` is a global flag, not subcommand-specific
+
+---
+
+## Test Report: infisical-run
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` for all flags
+
+### Test 1: Top-level flags
+- **Command:** `infisical run --help`
+- **Expected:** Match skill flags
+- **Actual:** All documented flags exist. **New flags discovered**: `--expand`, `--include-imports`, `--project-config-dir`, `--recursive`, `--secret-overriding`, `--tags`, `--token`, `--watch`, `--watch-interval`
+- **Status:** ⚠️ Partial
+- **Notes:** Skill is missing most flags. `--secret-override` exists but is misspelled — actual flag is **`--secret-overriding`** (with "g"). **`--silent` is not a flag for `run`** (it's a global flag but works). **`-c/--command` flag** for chained commands not documented.
+
+### Test 2: `--watch` feature
+- **Expected:** Not documented in skill
+- **Actual:** **`--watch` flag** enables auto-reload when secrets change. **`--watch-interval`** sets check frequency (default 10s).
+- **Status:** ⚠️ Not documented — valuable feature missing
+- **Notes:** Watch mode is great for development. Very useful.
+
+### Test 3: `--command` (chained commands)
+- **Expected:** Not documented in skill
+- **Actual:** **`-c/--command`** allows running chained shell commands without `--`.
+- **Status:** ⚠️ Not documented
+- **Notes:** Example: `infisical run --command "npm install && npm run dev; echo done"`
+
+### Summary
+
+| Test | Command | Status |
+|------|---------|--------|
+| 1 | Top-level flags | ⚠️ Missing most flags, `--secret-override` typo |
+| 2 | `--watch` feature | ⚠️ Not documented |
+| 3 | `--command` | ⚠️ Not documented |
+
+**Key findings:**
+- **`--secret-override` is wrong** — correct flag is **`--secret-overriding`**
+- **Many flags missing**: `--expand`, `--include-imports`, `--project-config-dir`, `--recursive`, `--secret-overriding`, `--tags`, `--token`
+- **Useful features not documented**: `--watch` + `--watch-interval` (auto-reload on secret change)
+- **`-c/--command`** for chained commands
+
+**Actions needed:**
+- [ ] Fix `--secret-override` → `--secret-overriding`
+- [ ] Add all missing flags
+- [ ] Add `--watch` and `--watch-interval` documentation
+- [ ] Add `-c/--command` documentation
