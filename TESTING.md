@@ -106,8 +106,8 @@ Tests are run manually using the AI agent that will consume these skills:
 ## Coverage Goals
 
 - [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets ✅
-- [x] Phase 2: Common operations (3) — run, export, bootstrap
-- [ ] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
+- [x] Phase 2: Common operations (3) — run ✅, export, bootstrap ✅
+- [x] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
 - [ ] Phase 5: Meta (1) — main CLI skill
 
@@ -448,3 +448,66 @@ Tests are run manually using the AI agent that will consume these skills:
 - [ ] Add all missing flags
 - [ ] Add `--watch` and `--watch-interval` documentation
 - [ ] Add `-c/--command` documentation
+
+---
+
+## Test Report: infisical-tokens
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` for all subcommands
+
+### Test 1: `infisical token`
+- **Command:** `infisical token --help`
+- **Expected:** Token management subcommands
+- **Actual:** Only subcommand is **`renew`** (to renew universal auth access token). No list, create, or delete for personal tokens via CLI.
+- **Status:** ⚠️ Partial
+- **Notes:** The skill describes "personal access token management" generically but the CLI only has `token renew`. List/create/delete for personal tokens are done via the web UI, not CLI.
+
+### Test 2: `infisical service-token`
+- **Command:** `infisical service-token --help`
+- **Expected:** `create`, `list`, `delete` subcommands
+- **Actual:** **Only `create` subcommand exists**. No `list` or `delete`.
+- **Status:** ❌ Fail
+- **Notes:** **`infisical service-token list` and `infisical service-token delete` do not exist** in the CLI. These are web UI operations.
+
+### Test 3: `infisical service-token create`
+- **Command:** `infisical service-token create --help`
+- **Expected:** Flags for creating service token
+- **Actual:** Flags: `--access-level`, `--expiry-seconds`, `--name`, `--projectId`, `--scope`, `--token-only`. **No `--organizationId`, `--env`, or `--expires-at` flags**.
+- **Status:** ⚠️ Partial
+- **Notes:** **`--env` is wrong** — correct way is `--scope <env>:<path>`. **`--expires-at` is wrong** — use `--expiry-seconds`. **`--scope` is the correct mechanism** for env+path scoping. **`--access-level`** replaces what the skill calls "scope/permissions". **`--token-only`** prints only the token (great for scripting). **`--name` defaults to** "Service token generated via CLI". **`--projectId` defaults** to the linked project in `.infisical.json`.
+
+### Test 4: `infisical token renew`
+- **Command:** `infisical token renew --help`
+- **Expected:** Renew access token
+- **Actual:** Takes `[token]` as positional arg (the token to renew). No special flags.
+- **Status:** ✅ Pass
+- **Notes:** Skill doesn't document this subcommand at all — good to add.
+
+### Summary
+
+| Test | Command | Status |
+|------|---------|--------|
+| 1 | `infisical token` | ⚠️ Only has `renew`, no CRUD for personal tokens |
+| 2 | `infisical service-token list/delete` | ❌ Commands don't exist |
+| 3 | `infisical service-token create` | ⚠️ Wrong flags throughout |
+| 4 | `infisical token renew` | ✅ Exists (not documented in skill) |
+
+**Key findings:**
+- **`infisical service-token list` and `delete` do NOT exist** — web UI only
+- **`--env` is wrong** — use **`--scope <env>:<path>`** for scoping
+- **`--expires-at` is wrong** — use **`--expiry-seconds`** (int, seconds from now)
+- **`--scope` format**: `<env-slug>:<folder-path>` (e.g., `production:/backend`)
+- **`--access-level`** replaces "scope/permissions" — values: `read`, `write` (can combine)
+- **`--token-only`** prints only the token (perfect for scripting)
+- **`--name` defaults** to "Service token generated via CLI"
+- **Default expiry**: 86400 seconds (1 day)
+- **`infisical token renew` exists** but wasn't documented
+
+**Actions needed:**
+- [ ] Remove `infisical service-token list` and `delete` — CLI doesn't have these
+- [ ] Replace `--env` and `--expires-at` with `--scope` and `--expiry-seconds`
+- [ ] Add `--access-level` (read/write) and `--token-only`
+- [ ] Add `infisical token renew` documentation
+- [ ] Clarify personal tokens (PAT) are managed via web UI
