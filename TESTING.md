@@ -106,10 +106,10 @@ Tests are run manually using the AI agent that will consume these skills:
 ## Coverage Goals
 
 - [x] Phase 1: Core skills (3) — auth ✅, init ✅, secrets ✅
-- [x] Phase 2: Common operations (3) — run ✅, export, bootstrap ✅
+- [x] Phase 2: Common operations (3) — run ✅, export ✅, bootstrap ✅
 - [x] Phase 3: Dynamic & advanced (2) — dynamic-secrets, tokens ✅
 - [ ] Phase 4: Infrastructure (5) — ssh, kmip, pam, relay, gateway
-- [ ] Phase 5: Meta (1) — main CLI skill
+- [x] Phase 5: Meta (1) — main CLI skill
 
 ---
 
@@ -569,3 +569,127 @@ Tests are run manually using the AI agent that will consume these skills:
 - [ ] Fix `--include-references` → `--include-imports`
 - [ ] Remove `--uppercase` and `--escape` (don't exist)
 - [ ] Add new flags: `--expand`, `--include-imports`, `--projectId`, `--template`, `--tags`, `--token`
+
+---
+
+## Test Report: infisical-dynamic-secrets
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` for all subcommands
+
+### Test 1: Top-level structure
+- **Command:** `infisical dynamic-secrets --help`
+- **Expected:** `list`, `create`, `revoke` subcommands
+- **Actual:** **Only subcommand is `lease`**. No `list`, `create`, or `revoke` at top level.
+- **Status:** ❌ Fail
+- **Notes:** The entire command structure is wrong. Dynamic secrets use a **lease-based model**. The correct subcommands are under `infisical dynamic-secrets lease`.
+
+### Test 2: `infisical dynamic-secrets lease`
+- **Command:** `infisical dynamic-secrets lease --help`
+- **Expected:** Subcommands for management
+- **Actual:** Subcommands: `create`, `delete`, `list`, `renew`
+- **Status:** ✅ Pass
+- **Notes:** Correct lease-based model confirmed.
+
+### Test 3: `infisical dynamic-secrets lease create`
+- **Command:** `infisical dynamic-secrets lease create --help`
+- **Expected:** Flags for creating credentials
+- **Actual:** Takes `[dynamic-secret]` as positional arg (not `--secret-name`). Flags: `--output`, `--plain`, `--path`, `--projectId`, `--project-slug`, `--token`, `--ttl`, `--kubernetes-namespace`.
+- **Status:** ⚠️ Partial
+- **Notes:** **No `--secret-name`, `--provider`, `--env`, `--username`, `--database`, `--ttl` as documented in skill**. The dynamic secret must already exist — this command **leases** it (creates temporary credentials). TTL is a string, not an integer.
+
+### Test 4: `infisical dynamic-secrets lease delete`
+- **Command:** `infisical dynamic-secrets lease delete --help`
+- **Expected:** Flags for revoking
+- **Actual:** Same subcommands as lease. **No `--force` flag**.
+- **Status:** ⚠️ Partial
+- **Notes:** **No `--secret-name` or `--force`** — use `infisical dynamic-secrets lease delete <name>`.
+
+### Test 5: `infisical dynamic-secrets lease list` and `renew`
+- **Command:** `infisical dynamic-secrets lease list --help` / `renew --help`
+- **Expected:** List and renew functionality
+- **Actual:** `list <dynamic-secret>`, `renew [lease-id]`. Both have `--output`, `--path`, `--projectId`, `--project-slug`, `--token`, `--ttl`.
+- **Status:** ⚠️ Partial
+- **Notes:** `renew` takes lease ID, not secret name. TTL is string format.
+
+### Summary
+
+| Test | Description | Status |
+|------|-------------|--------|
+| 1 | Top-level structure | ❌ No list/create/revoke — only `lease` |
+| 2 | `lease` subcommand | ✅ Correct |
+| 3 | `lease create` | ⚠️ Wrong flags — positional arg, no `--secret-name`/`--provider` |
+| 4 | `lease delete` | ⚠️ No `--secret-name`/`--force` |
+| 5 | `lease list/renew` | ⚠️ positional args, wrong flag names |
+
+**Key findings:**
+- **Entire skill is based on wrong command model** — the CLI uses a **lease-based system**, not direct credential generation
+- **No `list`, `create`, `revoke` at top level** — only `lease`
+- **`lease create`** takes the **dynamic secret name** as a positional argument (not `--secret-name`)
+- **Providers are configured in the Infisical dashboard**, not via CLI flags
+- **`--provider`, `--username`, `--database` are not CLI flags** — these are set when creating the dynamic secret in the UI
+- **No TTL format like `1h`, `30m`** — uses raw strings (e.g., `"1h"`, `"30m"`, `"24h"`)
+- **`lease renew` takes lease ID**, not secret name
+- **No `yaml` format** — only `json`, `dotenv` (confirmed same as secrets)
+
+**Actions needed:**
+- [ ] Complete rewrite — skill is fundamentally wrong
+- [ ] Change from `create/revoke` to `lease create/delete`
+- [ ] Remove `--provider`, `--username`, `--database`, `--secret-name` from create
+- [ ] Use positional args for dynamic secret names
+- [ ] Add `--ttl` string format documentation
+- [ ] Document lease lifecycle: create → use → renew → delete
+
+---
+
+## Test Report: infisical-cli (main routing skill)
+
+**Date:** 2026-04-26
+**Infisical CLI version:** 0.43.77
+**Testing method:** CLI `--help` comparison + cross-reference with tested sub-skills
+
+### Test 1: Authentication examples
+- **Expected:** `infisical login kubernetes --machine-identity-id` etc.
+- **Actual:** Skill uses **`--identity-id`** (wrong), **`--service-account-name`**, **`--namespace`** (all wrong for kubernetes)
+- **Status:** ❌ Fail
+- **Notes:** Authentication section has the same issues found in `infisical-auth`. Uses outdated flag names.
+
+### Test 2: Dynamic secrets example
+- **Expected:** `infisical dynamic-secrets lease create`
+- **Actual:** Skill says **`infisical dynamic-secrets generate --provider postgres`**
+- **Status:** ❌ Fail
+- **Notes:** **`generate` subcommand doesn't exist**. Use `lease create`.
+
+### Test 3: Secrets export example
+- **Expected:** `infisical export --env=prod --format=dotenv > .env`
+- **Actual:** Skill says **`infisical secrets --env=prod --export > .env`**
+- **Status:** ❌ Fail
+- **Notes:** **`--export` flag doesn't exist on `secrets`**. Use `infisical export`.
+
+### Test 4: Command reference table
+- **Expected:** All existing commands
+- **Actual:** Lists `infisical-migration` which doesn't exist
+- **Status:** ⚠️ Partial
+- **Notes:** Some commands (like `scan`, `cert-manager`, `agent`, `proxy`) not listed but do exist. `infisical-migration` is listed but doesn't exist.
+
+### Summary
+
+| Test | Description | Status |
+|------|-------------|--------|
+| 1 | Auth examples | ❌ Wrong flag names (inherited from auth skill) |
+| 2 | Dynamic secrets | ❌ Wrong command — `generate` → `lease create` |
+| 3 | Secrets export | ❌ `--export` on secrets → `infisical export` |
+| 4 | Command reference | ⚠️ `infisical-migration` doesn't exist |
+
+**Key findings:**
+- **`infisical dynamic-secrets generate`** → `infisical dynamic-secrets lease create`
+- **`infisical secrets --export`** → `infisical export`
+- **Auth flags** are wrong throughout (same as auth skill issues)
+- **`infisical-migration`** command does not exist
+
+**Actions needed:**
+- [ ] Fix dynamic secrets example: `generate` → `lease create`
+- [ ] Fix secrets export: `secrets --export` → `infisical export`
+- [ ] Update auth examples with correct `--machine-identity-id` etc.
+- [ ] Remove `infisical-migration` from command list

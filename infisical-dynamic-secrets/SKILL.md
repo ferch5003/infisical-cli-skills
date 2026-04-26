@@ -1,149 +1,229 @@
 ---
 name: infisical-dynamic-secrets
-description: Dynamic secrets generation for databases and cloud providers. Use when user mentions dynamic-secrets, dynamic secrets, temporary credentials, database credentials, rotating secrets.
+description: Dynamic secrets generation for databases and cloud providers. Use when user mentions dynamic-secrets, dynamic secrets, temporary credentials, database credentials, rotating secrets, lease secrets.
 metadata:
   openclaw:
     requires:
       bins: [infisical]
+      credentials:
+        - name: INFISICAL_TOKEN
+          description: Infisical token for authentication
+          required: true
+    network:
+      - description: Outbound HTTPS to Infisical API
+        scope: dynamic secrets lease operations
 ---
 
-# Infisical Dynamic Secrets
+# infisical-dynamic-secrets
 
-Generate temporary credentials for databases and cloud services.
+Manage dynamic secrets using a **lease-based model**. Dynamic secrets are configured in the Infisical dashboard first, then the CLI is used to lease (generate temporary credentials), list leases, renew them, and revoke (delete) them.
 
-## Quick reference
+**Important:** Providers are configured in the Infisical web UI, not via CLI flags. The CLI only manages the lease lifecycle.
 
-| Command | Description |
-|---------|-------------|
-| `infisical dynamic-secrets list` | List dynamic secrets |
-| `infisical dynamic-secrets create` | Generate new credentials |
-| `infisical dynamic-secrets revoke` | Revoke credentials |
+## Command Structure
 
-## list
+```
+infisical dynamic-secrets lease create   # Lease (generate temp credentials)
+infisical dynamic-secrets lease list       # List active leases
+infisical dynamic-secrets lease renew     # Renew a lease
+infisical dynamic-secrets lease delete   # Revoke/delete a lease
+```
 
-List configured dynamic secrets providers.
+## Quick Examples
 
 ```bash
-infisical dynamic-secrets list
-infisical dynamic-secrets list --env=production
+# Lease (create temp credentials for a dynamic secret)
+infisical dynamic-secrets lease create my-postgres-secret --env=production
+
+# List all leases for a dynamic secret
+infisical dynamic-secrets lease list my-postgres-secret --env=production
+
+# Renew a lease (extend its lifetime)
+infisical dynamic-secrets lease renew <lease-id> --ttl=1h
+
+# Revoke/delete a lease (invalidate credentials immediately)
+infisical dynamic-secrets lease delete my-postgres-secret --env=production
+```
+
+## Global Flags
+
+These apply to all `infisical dynamic-secrets lease` subcommands.
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--env <env>` | Environment name | `dev` |
+| `--path <path>` | Folder path within project | `/` |
+| `--projectId <id>` | Project ID (machine identity auth) | auto |
+| `--project-slug <slug>` | Project slug | auto |
+| `--token <token>` | Service/machine identity token | auto |
+
+## lease create
+
+Lease a dynamic secret — generates temporary credentials.
+
+```bash
+infisical dynamic-secrets lease create <dynamic-secret-name> [flags]
+```
+
+**Arguments:**
+- `<dynamic-secret-name>` — Name of the dynamic secret (configured in UI)
+
+**Flags:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--ttl <duration>` | Lease lifetime (e.g., `1h`, `30m`, `24h`) | dynamic secret default |
+| `--output <format>` | Output format: `yaml`, `json`, `dotenv` | — |
+| `--plain` | Print credentials without formatting | `false` |
+| `--kubernetes-namespace <ns>` | K8s namespace (Kubernetes secrets only) | — |
+
+**Examples:**
+```bash
+# Lease with default TTL
+infisical dynamic-secrets lease create postgres-creds --env=production
+
+# Lease with 1 hour TTL
+infisical dynamic-secrets lease create postgres-creds --ttl=1h --env=production
+
+# Lease with 30 minute TTL, JSON output
+infisical dynamic-secrets lease create redis-creds --ttl=30m --output=json --env=prod
+
+# Plain output for scripting
+infisical dynamic-secrets lease create api-creds --plain --env=production
+```
+
+## lease list
+
+List all active leases for a dynamic secret.
+
+```bash
+infisical dynamic-secrets lease list <dynamic-secret-name> [flags]
+```
+
+**Examples:**
+```bash
+infisical dynamic-secrets lease list postgres-creds --env=production
+infisical dynamic-secrets lease list postgres-creds --env=staging --output=json
+```
+
+## lease renew
+
+Renew an existing lease by its ID, extending its lifetime.
+
+```bash
+infisical dynamic-secrets lease renew <lease-id> [flags]
 ```
 
 **Flags:**
-- `--env` - Environment name
-- `--provider` - Filter by provider type
 
-## create
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--ttl <duration>` | New lease lifetime | dynamic secret default |
 
-Generate temporary credentials for a provider.
+**Examples:**
+```bash
+# Renew for 1 hour
+infisical dynamic-secrets lease renew lease-abc123 --ttl=1h
+
+# Renew for 30 minutes
+infisical dynamic-secrets lease renew lease-abc123 --ttl=30m
+```
+
+## lease delete
+
+Delete/revoke a lease, immediately invalidating the credentials.
 
 ```bash
-# PostgreSQL
-infisical dynamic-secrets create \
-  --provider postgres \
-  --secret-name db-creds \
-  --env=production
-
-# MySQL
-infisical dynamic-secrets create \
-  --provider mysql \
-  --secret-name mysql-creds \
-  --env=production
-
-# MongoDB
-infisical dynamic-secrets create \
-  --provider mongodb \
-  --secret-name mongo-creds
-
-# Redis
-infisical dynamic-secrets create \
-  --provider redis \
-  --secret-name redis-creds
+infisical dynamic-secrets lease delete <dynamic-secret-name> [flags]
 ```
 
-**Flags:**
-- `--provider` (required) - Provider type
-- `--secret-name` (required) - Secret name in Infisical
-- `--env` - Environment
-- `--ttl` - Time to live (default: 1h)
-- `--username` - Override username
-- `--database` - Database name
+**Examples:**
+```bash
+# Revoke credentials immediately
+infisical dynamic-secrets lease delete postgres-creds --env=production
 
-### Cloud providers
+# Revoke from specific project
+infisical dynamic-secrets lease delete redis-creds --env=prod --projectId=proj_xxx
+```
+
+## TTL Format
+
+TTL strings follow duration format:
+
+| Format | Duration |
+|--------|----------|
+| `30m` | 30 minutes |
+| `1h` | 1 hour |
+| `24h` | 24 hours |
+| `7d` | 7 days |
+| `30d` | 30 days |
+
+## Lease Lifecycle
+
+```
+┌─────────────────────────────────────────────┐
+│ 1. Configure dynamic secret in Infisical UI  │
+│    (PostgreSQL, MySQL, Redis, AWS, etc.)    │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│ 2. infisical dynamic-secrets lease create   │
+│    → Get temporary credentials               │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│ 3. Use credentials in your application        │
+└──────────────────────┬──────────────────────┘
+                       │
+          ┌────────────┴────────────┐
+          ▼                         ▼
+┌──────────────────┐   ┌──────────────────────┐
+│ 4. lease renew   │   │ 5. lease delete      │
+│ (extend if needed)│   │ (invalidate creds)  │
+└──────────────────┘   └──────────────────────┘
+```
+
+## Common Patterns
+
+### PostgreSQL with auto-reconnect
 
 ```bash
-# AWS RDS
-infisical dynamic-secrets create \
-  --provider aws-rds \
-  --secret-name rds-creds
+# Create lease
+CREDENTIALS=$(infisical dynamic-secrets lease create pg-creds --plain --output=dotenv)
+export $CREDENTIALS
+psql -h $PG_HOST -U $PG_USER -d $PG_DATABASE
 
-# Azure SQL
-infisical dynamic-secrets create \
-  --provider azure-sql \
-  --secret-name azure-db-creds
-
-# GCP Cloud SQL
-infisical dynamic-secrets create \
-  --provider gcp-sql \
-  --secret-name gcp-db-creds
+# When done, revoke
+infisical dynamic-secrets lease delete pg-creds
 ```
 
-### JDBC connection strings
+### CI/CD with short-lived credentials
 
 ```bash
-# PostgreSQL JDBC
-infisical dynamic-secrets create \
-  --provider jdbc-postgres \
-  --secret-name jdbc-conn
+# Get credentials for database migration
+creds=$(infisical dynamic-secrets lease create db-migration --ttl=5m --plain --output=dotenv --env=production)
+export $creds
+npm run migrate
 
-# MySQL JDBC
-infisical dynamic-secrets create \
-  --provider jdbc-mysql \
-  --secret-name jdbc-mysql-conn
+# Lease auto-expires or revoke immediately
+infisical dynamic-secrets lease delete db-migration --env=production
 ```
 
-## revoke
-
-Revoke active dynamic credentials.
+### AWS RDS (via Infisical)
 
 ```bash
-infisical dynamic-secrets revoke --secret-name db-creds
-infisical dynamic-secrets revoke --secret-name db-creds --env=production
+# Lease AWS RDS credentials
+infisical dynamic-secrets lease create prod-rds --ttl=1h --env=production --output=dotenv > .aws-rds.env
+source .aws-rds.env
 ```
 
-**Flags:**
-- `--secret-name` (required)
-- `--env` - Environment
-- `--force` - Skip confirmation
+## Notes
 
-## Provider types
-
-| Provider | Description |
-|----------|-------------|
-| `postgres` | PostgreSQL |
-| `mysql` | MySQL/MariaDB |
-| `mongodb` | MongoDB |
-| `redis` | Redis |
-| `aws-rds` | AWS RDS (PostgreSQL/MySQL) |
-| `azure-sql` | Azure SQL Database |
-| `gcp-sql` | GCP Cloud SQL |
-| `jdbc-postgres` | JDBC PostgreSQL connection string |
-| `jdbc-mysql` | JDBC MySQL connection string |
-
-## TTL format
-
-```
-1h    - 1 hour
-30m   - 30 minutes
-24h   - 24 hours
-7d    - 7 days
-```
-
-## Use cases
-
-```bash
-# Database connection in application
-infisical run --env=production -- node db-connect.js
-
-# Export credentials to .env
-infisical dynamic-secrets create --provider postgres --secret-name db-creds
-```
+- **Dynamic secrets must be configured in the Infisical web UI** before using the CLI
+- The CLI only manages the **lease lifecycle**, not the provider configuration
+- Credentials are **temporary by design** — always use lease/delete instead of long-lived static credentials
+- Use **`--plain --output=dotenv`** for easy environment variable sourcing in scripts
+- Leases can be **renewed** before expiration to extend credential validity
+- **AWS RDS**, **Azure SQL**, and **GCP Cloud SQL** are supported as dynamic secret providers in the UI
