@@ -1,0 +1,23 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Infisical (local config should not be committed)
+.infisical.json
+.infisical.local.json
+
+# Environment files (may contain real secrets)
+.env
+.env.local
+.env.*.local
+
+# Temp
+*.tmp
+*.log
